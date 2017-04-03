@@ -6,7 +6,7 @@ import (
     "time"
     "log"
     "strconv"
-    tcp "github.com/schaazzz/network/tcp"
+    tcp "github.com/schaazzz/golibs/network/tcp"
 )
 
 var logger * log.Logger
