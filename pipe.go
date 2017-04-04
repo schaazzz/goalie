@@ -1,7 +1,6 @@
 package main
 
 import (
-    "fmt"
     "os"
     "time"
     "log"
@@ -28,12 +27,10 @@ func handleConnection(c * tcp.Connection, join chan bool) {
             logger.Println(c.Name, "panicked, resetting in 3 seconds!")
             time.Sleep(3 * time.Second)
             goto reset
-        case dataIn := <- c.DataIn:
-            logger.Println(fmt.Sprintf("- %s >>", c.Name), string(dataIn.Bytes))
         case serverConnectionState := <- c.Connected:
             if serverConnectionState {
                 c.Ctrl <- "start"
-                c.DataOut <- &tcp.DataChunk{Length: len("oogabooga"), Bytes: []byte("oogabooga")}
+                // c.DataOut <- &tcp.DataChunk{Length: len("oogabooga"), Bytes: []byte("oogabooga")}
             } else {
                 break forever
             }
@@ -74,18 +71,31 @@ func (p * Pipe) Init() {
                 Address : p.ConnectAddr,
                 Name    : "PIPE CLIENT",
             }
-
 }
 
 func (p * Pipe) Start(join chan bool) {
     p.join = make(chan bool)
+
     go handleConnection(p.server, p.join)
     go handleConnection(p.client, p.join)
+    
+    time.Sleep(5 * time.Second)
+    go func() {
+        logger.Println("Starting piping goroutine...")
+        for {
+            select {
+            case serverDataIn := <- p.server.DataIn:
+                p.client.DataOut <- serverDataIn
+            case clientDataIn := <- p.client.DataIn:
+                p.server.DataOut <- clientDataIn
+            }
+        }
+    } ()
 
     gone := 0
-    for gone < 2 {
+    for gone < 3 {
         select {
-        case <- join:
+        case <- p.join:
             gone++
         }
     }

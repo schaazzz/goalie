@@ -3,11 +3,6 @@ package main
 import (
     "fmt"
     "flag"
-    // "os"
-    // "time"
-    // "log"
-    // "strconv"
-    // tcp "github.com/schaazzz/golibs/network/tcp"
 )
 
 
@@ -15,6 +10,7 @@ import (
 func main() {
     var mode = flag.String("mode", "echo", "Mode of operation: input, proxy, pipe or echo - [default = echo]")
     var delay = flag.Int("delay", 0, "Pipe mode: Relay data after the specified delay (milliseconds) - [default = 0]")
+
 
     flag.Parse()
     fmt.Println(*mode, *delay)
