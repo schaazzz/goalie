@@ -1,0 +1,9 @@
+[{
+    "role": "server",
+    "address": "127.0.0.1:17231",
+    "redirectDelay": 2000
+}, {
+    "role": "client",
+    "address": "127.0.0.1:17232",
+    "redirectDelay": 0
+}]

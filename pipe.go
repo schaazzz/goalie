@@ -7,13 +7,17 @@ import (
     tcp "github.com/schaazzz/golibs/network/tcp"
 )
 
+type pipeConfig struct {
+    address         string
+    redirectDelay   int
+}
+
 type Pipe struct {
-    ListenAddr  string
-    ConnectAddr string
-    Delay       int
-    server      * tcp.Connection
-    client      * tcp.Connection
-    join        chan bool
+    serverConfig    * pipeConfig
+    clientConfig    * pipeConfig
+    server          * tcp.Connection
+    client          * tcp.Connection
+    join            chan bool
 }
 
 var logger * log.Logger
@@ -30,7 +34,6 @@ func handleConnection(c * tcp.Connection, join chan bool) {
         case serverConnectionState := <- c.Connected:
             if serverConnectionState {
                 c.Ctrl <- "start"
-                // c.DataOut <- &tcp.DataChunk{Length: len("oogabooga"), Bytes: []byte("oogabooga")}
             } else {
                 break forever
             }
@@ -42,7 +45,17 @@ func handleConnection(c * tcp.Connection, join chan bool) {
     join <- true
 }
 
-func (p * Pipe) Init() {
+func (p * Pipe) Init(pipeJSON []PipeJSON) {
+
+    for _, element := range pipeJSON {
+        config := &pipeConfig {element.Address, element.RedirectDelay}
+        if element.Role == "server" {
+            p.serverConfig = config
+        } else {
+            p.clientConfig = config
+        }
+    }
+
     logger = log.New(os.Stdout, "[PIPE MAIN] ", log.Lmicroseconds)
     p.server = &tcp.Connection {
                 Channels: tcp.Channels {
@@ -54,7 +67,7 @@ func (p * Pipe) Init() {
                     Panic       : make(chan bool),
                 },
                 Server  : true,
-                Address : p.ListenAddr,
+                Address : p.serverConfig.address,
                 Name    : "PIPE SERVER",
             }
 
@@ -68,7 +81,7 @@ func (p * Pipe) Init() {
                     Panic       : make(chan bool),
                 },
                 Server  : false,
-                Address : p.ConnectAddr,
+                Address : p.clientConfig.address,
                 Name    : "PIPE CLIENT",
             }
 }
@@ -79,14 +92,15 @@ func (p * Pipe) Start(join chan bool) {
     go handleConnection(p.server, p.join)
     go handleConnection(p.client, p.join)
     
-    time.Sleep(5 * time.Second)
     go func() {
         logger.Println("Starting piping goroutine...")
         for {
             select {
             case serverDataIn := <- p.server.DataIn:
+                time.Sleep(time.Duration(p.serverConfig.redirectDelay) * time.Millisecond)
                 p.client.DataOut <- serverDataIn
             case clientDataIn := <- p.client.DataIn:
+                time.Sleep(time.Duration(p.clientConfig.redirectDelay) * time.Millisecond)
                 p.server.DataOut <- clientDataIn
             }
         }
