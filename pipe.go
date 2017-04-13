@@ -20,33 +20,32 @@ type Pipe struct {
     join            chan bool
 }
 
-var logger * log.Logger
+var pipeLogger * log.Logger
 
-func handleConnection(c * tcp.Connection, join chan bool) {
-    reset: go c.Start()
+// func handleConnection(c * tcp.Connection, join chan bool) {
+//     reset: go c.Start()
 
-    forever: for {
-        select {
-        case <- c.Panic:
-            logger.Println(c.Name, "panicked, resetting in 3 seconds!")
-            time.Sleep(3 * time.Second)
-            goto reset
-        case serverConnectionState := <- c.Connected:
-            if serverConnectionState {
-                c.Ctrl <- "start"
-            } else {
-                break forever
-            }
-        case <- c.Done:
-            break forever
-        }
-    }
+//     forever: for {
+//         select {
+//         case <- c.Panic:
+//             pipeLogger.Println(c.Name, "panicked, resetting in 3 seconds!")
+//             time.Sleep(3 * time.Second)
+//             goto reset
+//         case serverConnectionState := <- c.Connected:
+//             if serverConnectionState {
+//                 c.Ctrl <- "start"
+//             } else {
+//                 break forever
+//             }
+//         case <- c.Done:
+//             break forever
+//         }
+//     }
 
-    join <- true
-}
+//     join <- true
+// }
 
 func (p * Pipe) Init(pipeJSON []PipeJSON) {
-
     for _, element := range pipeJSON {
         config := &pipeConfig {element.Address, element.RedirectDelay}
         if element.Role == "server" {
@@ -56,7 +55,7 @@ func (p * Pipe) Init(pipeJSON []PipeJSON) {
         }
     }
 
-    logger = log.New(os.Stdout, "[PIPE MAIN] ", log.Lmicroseconds)
+    pipeLogger = log.New(os.Stdout, "[PIPE MAIN] ", log.Lmicroseconds)
     p.server = &tcp.Connection {
                 Channels: tcp.Channels {
                     Ctrl        : make(chan string),
@@ -89,11 +88,11 @@ func (p * Pipe) Init(pipeJSON []PipeJSON) {
 func (p * Pipe) Start(join chan bool) {
     p.join = make(chan bool)
 
-    go handleConnection(p.server, p.join)
-    go handleConnection(p.client, p.join)
+    go handleConnection(p.server, pipeLogger, p.join)
+    go handleConnection(p.client, pipeLogger, p.join)
     
     go func() {
-        logger.Println("Starting piping goroutine...")
+        pipeLogger.Println("Starting piping goroutine...")
         for {
             select {
             case serverDataIn := <- p.server.DataIn:

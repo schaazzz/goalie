@@ -1,0 +1,10 @@
+[{
+    "role": "server",
+    "address": "127.0.0.1:17231"
+}, {
+    "role": "server",
+    "address": "127.0.0.1:17232"
+}, {
+    "role": "client",
+    "address": "127.0.0.1:17233"
+}]
