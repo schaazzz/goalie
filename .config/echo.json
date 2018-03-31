@@ -1,10 +1,7 @@
 [{
     "role": "server",
-    "address": "127.0.0.1:17231"
-}, {
-    "role": "server",
-    "address": "127.0.0.1:17232"
+    "address": "[::1]:9004"
 }, {
     "role": "client",
-    "address": "127.0.0.1:17233"
+    "address": "[::1]:9004"
 }]
