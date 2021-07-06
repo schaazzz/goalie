@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"os"
 	"sync"
-	"time"
 )
 
 type ShellType int
@@ -31,28 +30,28 @@ func (this *Shell) init(shell ShellType) {
 	}
 }
 
-func (this *Shell) start(join chan bool, cmd chan string, args chan []string) {
+func (this *Shell) start(join chan bool, parsedCommand chan *ParsedCommand, commandComplete chan bool) {
 	usrInput := make(chan string)
 
 	if this.shell == Local || this.shell == Both {
 		this.wg.Add(1)
-		go this.startLocalShell(usrInput)
+		go this.startLocalShell(usrInput, commandComplete)
 	}
 
 	if this.shell == Remote || this.shell == Both {
 		this.wg.Add(1)
-		go this.startRemoteShell(usrInput)
+		go this.startRemoteShell(usrInput, commandComplete)
 	}
 
 	exit := make(chan bool)
-	go this.processCmdStr(usrInput, cmd, args, exit)
+	go this.processCmdStr(usrInput, parsedCommand, exit)
 
 	this.wg.Wait()
 	exit <- true
 	join <- true
 }
 
-func (this *Shell) processCmdStr(usrInput chan string, cmd chan string, args chan []string, exit chan bool) {
+func (this *Shell) processCmdStr(usrInput chan string, parsedCommand chan *ParsedCommand, exit chan bool) {
 loop:
 	for {
 		select {
@@ -64,7 +63,7 @@ loop:
 	}
 }
 
-func (this *Shell) startLocalShell(usrInput chan string) {
+func (this *Shell) startLocalShell(usrInput chan string, commandComplete chan bool) {
 	defer this.wg.Done()
 
 	writer := bufio.NewWriter(os.Stdout)
@@ -76,10 +75,10 @@ func (this *Shell) startLocalShell(usrInput chan string) {
 
 		cmdStr, _ := reader.ReadString('\n')
 		usrInput <- cmdStr
-		time.Sleep(250 * time.Millisecond)
+		<-commandComplete
 	}
 }
 
-func (this *Shell) startRemoteShell(usrInput chan string) {
+func (this *Shell) startRemoteShell(usrInput chan string, commandComplete chan bool) {
 	defer this.wg.Done()
 }

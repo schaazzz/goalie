@@ -53,7 +53,7 @@ func parseArgs(config *Config) error {
 
 	switch *shell {
 	case "none", "local", "remote", "all":
-		fmt.Printf("Shell was valid: %s\n", *shell)
+		config.shell = *shell
 		break
 	default:
 		flags.Usage()
@@ -82,13 +82,40 @@ func main() {
 		return
 	}
 
-	gone := 0
-	for gone < 1 {
-		select {
-		case <-join:
-			gone++
+	pluginCmd := &Command{}
+	pluginCmd.init("plugin", "<subcommand>  Top level plugin command")
+	pluginCmd.addSubCommand("ls", "Show list of all available plugins")
+	pluginCmd.addSubCommand("start", "Start plugin")
+	pluginCmd.addSubCommand("stop", "Stop plugin")
+	pluginCmd.addSubCommand("help", "Print plugin command help")
+
+	helpCmd := &Command{}
+	helpCmd.init("help", "Print this help menu")
+
+	exitCmd := &Command{}
+	exitCmd.init("exit", "Exit this shell")
+
+	cmdParser := &CommandParser{}
+	cmdParser.addCommand(pluginCmd)
+	cmdParser.addCommand(exitCmd)
+	cmdParser.addCommand(helpCmd)
+	cmdParser.printHelp()
+
+	shell := &Shell{}
+	shell.init(Local)
+
+	parsedCommand := make(chan *ParsedCommand)
+	commandComplete := make(chan bool)
+
+	if config.shell != "none" {
+		switch config.shell {
+		case "local":
+			go shell.start(join, parsedCommand, commandComplete)
 		}
 	}
+
+	<-join
+
 }
 
 func handleConnection(c *tcp.Connection, logger *log.Logger, join chan bool) {
