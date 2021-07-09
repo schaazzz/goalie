@@ -73,6 +73,23 @@ func parseArgs(config *Config) error {
 	return nil
 }
 
+func setupCmdParser(cmdParser *CommandParser) {
+	serviceCmd := &Command{}
+	serviceCmd.init(1, "service <subcommand>", "Service specific commands, a subcommand must be specified")
+	serviceCmd.addSubCommand(0, "ls", "service ls", "Show list of all available services")
+	serviceCmd.addSubCommand(1, "start", "service start <service>", "Start specified service")
+	serviceCmd.addSubCommand(1, "stop", "service stop  <service>", "Stop specified service")
+	serviceCmd.addSubCommand(2, "cmd", "service cmd   <service> <cmd>", "Forwards command to specifeid service")
+	serviceCmd.addSubCommand(1, "help", "service help  <service>", "Print service specific command help")
+
+	cmdParser.init()
+	cmdParser.addCommand("service", serviceCmd)
+}
+
+func executeCmd(parsedCmd *ParsedCommand) {
+
+}
+
 func main() {
 	join := make(chan bool)
 
@@ -82,35 +99,19 @@ func main() {
 		return
 	}
 
-	pluginCmd := &Command{}
-	pluginCmd.init("plugin", "<subcommand>  Top level plugin command")
-	pluginCmd.addSubCommand("ls", "Show list of all available plugins")
-	pluginCmd.addSubCommand("start", "Start plugin")
-	pluginCmd.addSubCommand("stop", "Stop plugin")
-	pluginCmd.addSubCommand("help", "Print plugin command help")
-
-	helpCmd := &Command{}
-	helpCmd.init("help", "Print this help menu")
-
-	exitCmd := &Command{}
-	exitCmd.init("exit", "Exit this shell")
-
 	cmdParser := &CommandParser{}
-	cmdParser.addCommand(pluginCmd)
-	cmdParser.addCommand(exitCmd)
-	cmdParser.addCommand(helpCmd)
-	cmdParser.printHelp()
+	setupCmdParser(cmdParser)
 
 	shell := &Shell{}
-	shell.init(Local)
+	shell.init(Local, cmdParser)
 
-	parsedCommand := make(chan *ParsedCommand)
-	commandComplete := make(chan bool)
+	parsedCmd := make(chan *ParsedCommand)
+	cmdComplete := make(chan bool)
 
 	if config.shell != "none" {
 		switch config.shell {
 		case "local":
-			go shell.start(join, parsedCommand, commandComplete)
+			go shell.start(join, cmdComplete, parsedCmd)
 		}
 	}
 

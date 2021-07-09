@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"sync"
 )
@@ -17,53 +18,32 @@ const (
 
 // ...
 type Shell struct {
-	shell ShellType
-	count int
-	wg    sync.WaitGroup
+	shell     ShellType
+	cmdParser *CommandParser
+	wg        sync.WaitGroup
 }
 
-func (this *Shell) init(shell ShellType) {
+func (this *Shell) init(shell ShellType, cmdParser *CommandParser) {
 	this.shell = shell
-
-	if this.shell == Both {
-		this.count = 2
-	}
+	this.cmdParser = cmdParser
 }
 
-func (this *Shell) start(join chan bool, parsedCommand chan *ParsedCommand, commandComplete chan bool) {
-	usrInput := make(chan string)
-
+func (this *Shell) start(join chan bool, cmdProcessed chan bool, parsedCmd chan *ParsedCommand) {
 	if this.shell == Local || this.shell == Both {
 		this.wg.Add(1)
-		go this.startLocalShell(usrInput, commandComplete)
+		go this.startLocalShell(cmdProcessed)
 	}
 
 	if this.shell == Remote || this.shell == Both {
 		this.wg.Add(1)
-		go this.startRemoteShell(usrInput, commandComplete)
+		go this.startRemoteShell(cmdProcessed)
 	}
 
-	exit := make(chan bool)
-	go this.processCmdStr(usrInput, parsedCommand, exit)
-
 	this.wg.Wait()
-	exit <- true
 	join <- true
 }
 
-func (this *Shell) processCmdStr(usrInput chan string, parsedCommand chan *ParsedCommand, exit chan bool) {
-loop:
-	for {
-		select {
-		case cmdStr := <-usrInput:
-			println("Received:", cmdStr)
-		case <-exit:
-			break loop
-		}
-	}
-}
-
-func (this *Shell) startLocalShell(usrInput chan string, commandComplete chan bool) {
+func (this *Shell) startLocalShell(cmdProcessed chan bool) {
 	defer this.wg.Done()
 
 	writer := bufio.NewWriter(os.Stdout)
@@ -73,12 +53,26 @@ func (this *Shell) startLocalShell(usrInput chan string, commandComplete chan bo
 		writer.WriteString("#> ")
 		writer.Flush()
 
-		cmdStr, _ := reader.ReadString('\n')
-		usrInput <- cmdStr
-		<-commandComplete
+		usrInput, _ := reader.ReadString('\n')
+		parsedCmd, err := this.cmdParser.parseCommand(usrInput)
+
+		if err == nil {
+			fmt.Printf("parsedCmd %+v\n", parsedCmd)
+			if parsedCmd.commandName == "exit" {
+				continue
+			} else if parsedCmd.commandName == "help" {
+				this.cmdParser.printHelp(nil)
+			} else {
+				//<-cmdProcessed
+				continue
+			}
+		} else {
+			this.cmdParser.printHelp(&err)
+		}
+
 	}
 }
 
-func (this *Shell) startRemoteShell(usrInput chan string, commandComplete chan bool) {
+func (this *Shell) startRemoteShell(cmdProcessed chan bool) {
 	defer this.wg.Done()
 }
