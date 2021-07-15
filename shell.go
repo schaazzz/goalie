@@ -31,19 +31,19 @@ func (this *Shell) init(shell ShellType, cmdParser *CommandParser) {
 func (this *Shell) start(join chan bool, cmdProcessed chan bool, parsedCmd chan *ParsedCommand) {
 	if this.shell == Local || this.shell == Both {
 		this.wg.Add(1)
-		go this.startLocalShell(cmdProcessed)
+		go this.startLocalShell(cmdProcessed, parsedCmd)
 	}
 
 	if this.shell == Remote || this.shell == Both {
 		this.wg.Add(1)
-		go this.startRemoteShell(cmdProcessed)
+		go this.startRemoteShell(cmdProcessed, parsedCmd)
 	}
 
 	this.wg.Wait()
 	join <- true
 }
 
-func (this *Shell) startLocalShell(cmdProcessed chan bool) {
+func (this *Shell) startLocalShell(cmdProcessed chan bool, parsedCmd chan *ParsedCommand) {
 	defer this.wg.Done()
 
 	writer := bufio.NewWriter(os.Stdout)
@@ -54,16 +54,17 @@ func (this *Shell) startLocalShell(cmdProcessed chan bool) {
 		writer.Flush()
 
 		usrInput, _ := reader.ReadString('\n')
-		parsedCmd, err := this.cmdParser.parseCommand(usrInput)
+		parsedCmdLocal, err := this.cmdParser.parseCommand(usrInput)
 
 		if err == nil {
-			fmt.Printf("parsedCmd %+v\n", parsedCmd)
-			if parsedCmd.commandName == "exit" {
-				continue
-			} else if parsedCmd.commandName == "help" {
+			fmt.Printf("parsedCmd: %+v\n", parsedCmdLocal)
+			if parsedCmdLocal.commandName == "exit" {
+				return
+			} else if parsedCmdLocal.commandName == "help" {
 				this.cmdParser.printHelp(nil)
 			} else {
-				//<-cmdProcessed
+				parsedCmd <- parsedCmdLocal
+				<-cmdProcessed
 				continue
 			}
 		} else {
@@ -73,6 +74,6 @@ func (this *Shell) startLocalShell(cmdProcessed chan bool) {
 	}
 }
 
-func (this *Shell) startRemoteShell(cmdProcessed chan bool) {
+func (this *Shell) startRemoteShell(cmdProcessed chan bool, parsedCmd chan *ParsedCommand) {
 	defer this.wg.Done()
 }

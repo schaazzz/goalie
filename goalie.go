@@ -10,21 +10,22 @@ import (
 	"time"
 
 	tcp "github.com/schaazzz/golibs/network/tcp"
-	//"rsc.io/getopt"
 )
 
-// Config is...
-type Config struct {
+// Options is...
+type Options struct {
+	config Config
 	shell  string
 	plugin map[string]string
 }
 
-func parseArgs(config *Config) error {
+func parseArgs(options *Options) error {
 	flags := flag.NewFlagSet("default", flag.ContinueOnError)
+
 	flags.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of \"goalie\":\n")
 		fmt.Fprintf(flag.CommandLine.Output(), " -config string\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "        Config file for the selected mode\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "        Configuration file\n")
 		fmt.Fprintf(flag.CommandLine.Output(), " -shell string\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "        Interactive shell: none, local, remote, all (default \"none\")\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "        Remote shell serves by default @ 127.0.0.1:17231, use config file to customize\n\n")
@@ -33,19 +34,17 @@ func parseArgs(config *Config) error {
 		fmt.Fprintf(flag.CommandLine.Output(), "\n\n")
 	}
 
-	configFile := flags.String("config", "", "Config file for the selected mode")
-	shell := flags.String("shell", "none", "Interactive shell: none, local, remote, all\n"+
-		"Remote shell serves by default @ 127.0.0.1:17231, use config file to customize")
-
-	help := flags.Bool("help", false, "Print this help menu")
-
-	_, _ /*configJSON, _ :*/ = ioutil.ReadFile(*configFile)
+	// Leaving out the usage string since we have a custom "Usage" function
+	configFile := flags.String("config", "", "")
+	shell := flags.String("shell", "none", "")
+	help := flags.Bool("help", false, "")
 
 	err := flags.Parse(os.Args[1:])
-
 	if err != nil {
-		return err
+		log.Fatal("[Error] Argument parsing error: ", err.Error())
+		return errors.New("---")
 	}
+
 	if *help {
 		flags.Usage()
 		return errors.New("---")
@@ -53,12 +52,23 @@ func parseArgs(config *Config) error {
 
 	switch *shell {
 	case "none", "local", "remote", "all":
-		config.shell = *shell
+		options.shell = *shell
 		break
 	default:
 		flags.Usage()
 		return errors.New("undefined shell option: \"" + *shell + "\"")
 	}
+
+	configJSON, err := ioutil.ReadFile(*configFile)
+	_ = configJSON
+	if err != nil {
+		fmt.Printf("!!! %s\n", *configFile)
+		log.Fatal("[Error] Configuration file - ", err.Error())
+		return errors.New("---")
+	}
+
+	options.config = parseConfigJSON(configJSON)
+	fmt.Printf("%+v\n", options.config)
 
 	// if *mode == "pipe" {
 	// 	pipe := &Pipe{}
@@ -93,8 +103,8 @@ func executeCmd(parsedCmd *ParsedCommand) {
 func main() {
 	join := make(chan bool)
 
-	config := &Config{}
-	if err := parseArgs(config); err != nil {
+	options := &Options{}
+	if err := parseArgs(options); err != nil {
 		println(err.Error())
 		return
 	}
@@ -108,15 +118,58 @@ func main() {
 	parsedCmd := make(chan *ParsedCommand)
 	cmdComplete := make(chan bool)
 
-	if config.shell != "none" {
-		switch config.shell {
+	if options.shell != "none" {
+		switch options.shell {
 		case "local":
 			go shell.start(join, cmdComplete, parsedCmd)
 		}
 	}
 
-	<-join
+	for {
+		select {
+		case parsedCmdLocal := <-parsedCmd:
+			fmt.Printf("==>%+v\n", parsedCmdLocal)
+			processCommand(parsedCmdLocal, &options.config)
+			cmdComplete <- true
+			break
+		case <-join:
+			return
+		}
+	}
+}
 
+func processCommand(parsedCmd *ParsedCommand, config *Config) {
+	switch parsedCmd.commandName {
+	case "service":
+		processServiceCommand(parsedCmd.subCommandName, parsedCmd.args, config.Services)
+	}
+}
+
+func processServiceCommand(subCmdName string, args []string, services []Service) {
+	switch subCmdName {
+	case "ls":
+		for _, service := range services {
+			fmt.Printf("%s\t", service.Name)
+		}
+		println()
+		break
+	case "start":
+		// validate service name and start service
+		break
+	case "stop":
+		// validate service name, run status and stop service
+		break
+	case "cmd":
+		// validate service name, run status and forward command to the service
+		// wait here afterwards
+		break
+	case "help":
+		// validate service name, run status and forward command to the service
+		// wait here afterwards
+	default:
+		log.Fatal("HTF did I end up here!?")
+		break
+	}
 }
 
 func handleConnection(c *tcp.Connection, logger *log.Logger, join chan bool) {
