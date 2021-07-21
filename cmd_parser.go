@@ -123,7 +123,7 @@ func (this *CommandParser) extractValidateCommand(tokens []string) (string, []st
 
 func (this *CommandParser) parseCommand(cmdStr string) (*ParsedCommand, error) {
 	re := regexp.MustCompile(`\s+`)
-	cmdStr = strings.TrimSpace(re.ReplaceAllString(cmdStr, " "))
+	cmdStr = re.ReplaceAllString(cmdStr, " ")
 	tokens := strings.Split(cmdStr, " ")
 	var err error = errors.New("unknown command")
 

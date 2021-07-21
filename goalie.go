@@ -7,8 +7,14 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-plugin"
+	"github.com/schaazzz/goalie/shared"
 	tcp "github.com/schaazzz/golibs/network/tcp"
 )
 
@@ -18,6 +24,9 @@ type Options struct {
 	shell  string
 	plugin map[string]string
 }
+
+// pluginMap is the map of plugins we can dispense.
+var pluginMap = map[string]plugin.Plugin{}
 
 func parseArgs(options *Options) error {
 	flags := flag.NewFlagSet("default", flag.ContinueOnError)
@@ -54,13 +63,13 @@ func parseArgs(options *Options) error {
 	case "none", "local", "remote", "all":
 		options.shell = *shell
 		break
+
 	default:
 		flags.Usage()
 		return errors.New("undefined shell option: \"" + *shell + "\"")
 	}
 
 	configJSON, err := ioutil.ReadFile(*configFile)
-	_ = configJSON
 	if err != nil {
 		fmt.Printf("!!! %s\n", *configFile)
 		log.Fatal("[Error] Configuration file - ", err.Error())
@@ -68,7 +77,12 @@ func parseArgs(options *Options) error {
 	}
 
 	options.config = parseConfigJSON(configJSON)
-	fmt.Printf("%+v\n", options.config)
+
+	for _, service := range options.config.Services {
+		pluginMap[service.Name] = &shared.ServicePlugin{}
+	}
+
+	fmt.Printf("!! pluginMap 0: %+v\n", pluginMap)
 
 	// if *mode == "pipe" {
 	// 	pipe := &Pipe{}
@@ -146,29 +160,112 @@ func processCommand(parsedCmd *ParsedCommand, config *Config) {
 }
 
 func processServiceCommand(subCmdName string, args []string, services []Service) {
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:   "plugin",
+		Output: os.Stdout,
+		Level:  hclog.Debug,
+	})
+
 	switch subCmdName {
 	case "ls":
-		for _, service := range services {
-			fmt.Printf("%s\t", service.Name)
+		for _, s := range services {
+			fmt.Printf("%s\t", s.Name)
 		}
 		println()
 		break
 	case "start":
 		// validate service name and start service
+		var service *Service
+		for _, s := range services {
+			if s.Name == args[0] {
+				service = &s
+				break
+			}
+		}
+
+		if service != nil {
+			if service.Name == args[0] {
+				_, err := os.Stat(service.Path)
+				if err == nil {
+					go startService(service, &logger)
+				} else if os.IsNotExist(err) {
+					fmt.Printf("Error: service \"%s\" not found\n", service.Name)
+				} else {
+					fmt.Printf("Error: %s\n", err.Error())
+				}
+			}
+		}
 		break
+
 	case "stop":
 		// validate service name, run status and stop service
 		break
+
 	case "cmd":
-		// validate service name, run status and forward command to the service
-		// wait here afterwards
+		foundCmd := ""
+		for _, s := range services {
+			println("service")
+			if s.Name == args[0] {
+				for _, cmd := range s.CmdList {
+					if cmd == args[1] {
+						foundCmd = cmd
+					}
+				}
+				break
+			}
+		}
+
+		if foundCmd != "" {
+			println("command found")
+		} else {
+			fmt.Printf("Error: service \"%s\" doesn't support command \"%s\"\n", args[0], args[1])
+		}
+
 		break
+
 	case "help":
 		// validate service name, run status and forward command to the service
 		// wait here afterwards
+
 	default:
 		log.Fatal("HTF did I end up here!?")
 		break
+	}
+}
+
+func startService(service *Service, logger *hclog.Logger) {
+	var handshakeConfig = plugin.HandshakeConfig{
+		ProtocolVersion:  1,
+		MagicCookieKey:   strings.ToUpper(service.Name),
+		MagicCookieValue: service.Name,
+	}
+
+	client := plugin.NewClient(
+		&plugin.ClientConfig{
+			HandshakeConfig: handshakeConfig,
+			Plugins:         pluginMap,
+			Cmd:             exec.Command(service.Path),
+			Logger:          *logger,
+		})
+	defer client.Kill()
+
+	rpcClient, err := client.Client()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	raw, err := rpcClient.Dispense(service.Name)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	serviceIntf := raw.(shared.ServiceIntf)
+
+	count := 1
+	for {
+		serviceIntf.HandleCommand([]string{strconv.Itoa(count)})
+		count++
+		time.Sleep(20 * time.Second)
 	}
 }
 

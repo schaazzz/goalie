@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -54,23 +55,26 @@ func (this *Shell) startLocalShell(cmdProcessed chan bool, parsedCmd chan *Parse
 		writer.Flush()
 
 		usrInput, _ := reader.ReadString('\n')
-		parsedCmdLocal, err := this.cmdParser.parseCommand(usrInput)
+		usrInput = strings.TrimSpace(usrInput)
 
-		if err == nil {
-			fmt.Printf("parsedCmd: %+v\n", parsedCmdLocal)
-			if parsedCmdLocal.commandName == "exit" {
-				return
-			} else if parsedCmdLocal.commandName == "help" {
-				this.cmdParser.printHelp(nil)
+		if usrInput != "" {
+			parsedCmdLocal, err := this.cmdParser.parseCommand(usrInput)
+
+			if err == nil {
+				fmt.Printf("parsedCmd: %+v\n", parsedCmdLocal)
+				if parsedCmdLocal.commandName == "exit" {
+					return
+				} else if parsedCmdLocal.commandName == "help" {
+					this.cmdParser.printHelp(nil)
+				} else {
+					parsedCmd <- parsedCmdLocal
+					<-cmdProcessed
+					continue
+				}
 			} else {
-				parsedCmd <- parsedCmdLocal
-				<-cmdProcessed
-				continue
+				this.cmdParser.printHelp(&err)
 			}
-		} else {
-			this.cmdParser.printHelp(&err)
 		}
-
 	}
 }
 
