@@ -71,7 +71,6 @@ func parseArgs(options *Options) error {
 
 	configJSON, err := ioutil.ReadFile(*configFile)
 	if err != nil {
-		fmt.Printf("!!! %s\n", *configFile)
 		log.Fatal("[Error] Configuration file - ", err.Error())
 		return errors.New("---")
 	}
@@ -81,8 +80,6 @@ func parseArgs(options *Options) error {
 	for _, service := range options.config.Services {
 		pluginMap[service.Name] = &shared.ServicePlugin{}
 	}
-
-	fmt.Printf("!! pluginMap 0: %+v\n", pluginMap)
 
 	// if *mode == "pipe" {
 	// 	pipe := &Pipe{}
@@ -97,20 +94,20 @@ func parseArgs(options *Options) error {
 	return nil
 }
 
-func setupCmdParser(cmdParser *CommandParser) {
-	serviceCmd := &Command{}
-	serviceCmd.init(1, "service <subcommand>", "Service specific commands, a subcommand must be specified")
-	serviceCmd.addSubCommand(0, "ls", "service ls", "Show list of all available services")
-	serviceCmd.addSubCommand(1, "start", "service start <service>", "Start specified service")
-	serviceCmd.addSubCommand(1, "stop", "service stop  <service>", "Stop specified service")
-	serviceCmd.addSubCommand(2, "cmd", "service cmd   <service> <cmd>", "Forwards command to specifeid service")
-	serviceCmd.addSubCommand(1, "help", "service help  <service>", "Print service specific command help")
+func setupCmdParser(cmdParser *shared.CommandParser) {
+	serviceCmd := &shared.Command{}
+	serviceCmd.Init(1, "service <subcommand>", "Service specific commands, a subcommand must be specified")
+	serviceCmd.AddSubCommand(0, "ls", "service ls", "Show list of all available services")
+	serviceCmd.AddSubCommand(1, "start", "service start <service>", "Start specified service")
+	serviceCmd.AddSubCommand(1, "stop", "service stop  <service>", "Stop specified service")
+	serviceCmd.AddSubCommand(2, "cmd", "service cmd   <service> <cmd>", "Forwards command to specifeid service")
+	serviceCmd.AddSubCommand(1, "help", "service help  <service>", "Print service specific command help")
 
-	cmdParser.init()
-	cmdParser.addCommand("service", serviceCmd)
+	cmdParser.Init()
+	cmdParser.AddCommand("service", serviceCmd)
 }
 
-func executeCmd(parsedCmd *ParsedCommand) {
+func executeCmd(parsedCmd *shared.ParsedCommand) {
 
 }
 
@@ -123,13 +120,13 @@ func main() {
 		return
 	}
 
-	cmdParser := &CommandParser{}
+	cmdParser := &shared.CommandParser{}
 	setupCmdParser(cmdParser)
 
 	shell := &Shell{}
 	shell.init(Local, cmdParser)
 
-	parsedCmd := make(chan *ParsedCommand)
+	parsedCmd := make(chan *shared.ParsedCommand)
 	cmdComplete := make(chan bool)
 
 	if options.shell != "none" {
@@ -142,7 +139,6 @@ func main() {
 	for {
 		select {
 		case parsedCmdLocal := <-parsedCmd:
-			fmt.Printf("==>%+v\n", parsedCmdLocal)
 			processCommand(parsedCmdLocal, &options.config)
 			cmdComplete <- true
 			break
@@ -152,10 +148,10 @@ func main() {
 	}
 }
 
-func processCommand(parsedCmd *ParsedCommand, config *Config) {
-	switch parsedCmd.commandName {
+func processCommand(parsedCmd *shared.ParsedCommand, config *Config) {
+	switch parsedCmd.CommandName {
 	case "service":
-		processServiceCommand(parsedCmd.subCommandName, parsedCmd.args, config.Services)
+		processServiceCommand(parsedCmd.SubCommandName, parsedCmd.Args, config.Services)
 	}
 }
 

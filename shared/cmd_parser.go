@@ -1,4 +1,4 @@
-package main
+package shared
 
 import (
 	"errors"
@@ -27,19 +27,19 @@ type CommandParser struct {
 
 // ...
 type ParsedCommand struct {
-	commandName    string
-	subCommandName string
-	args           []string
+	CommandName    string
+	SubCommandName string
+	Args           []string
 }
 
-func (this *Command) init(numArgs int, usage string, description string) {
+func (this *Command) Init(numArgs int, usage string, description string) {
 	this.base.numArgs = numArgs
 	this.base.usage = usage
 	this.base.description = description
 	this.subCommands = make(map[string]CommandBaseType)
 }
 
-func (this *Command) addSubCommand(numArgs int, name string, usage string, description string) {
+func (this *Command) AddSubCommand(numArgs int, name string, usage string, description string) {
 	this.subCommands[name] = CommandBaseType{
 		numArgs:     numArgs,
 		usage:       usage,
@@ -47,23 +47,23 @@ func (this *Command) addSubCommand(numArgs int, name string, usage string, descr
 	}
 }
 
-func (this *CommandParser) init() {
+func (this *CommandParser) Init() {
 	this.commands = make(map[string]*Command)
 
 	helpCmd := &Command{}
-	helpCmd.init(0, "help", "Print this help menu")
-	this.addCommand("help", helpCmd)
+	helpCmd.Init(0, "help", "Print this help menu")
+	this.AddCommand("help", helpCmd)
 
 	exitCmd := &Command{}
-	exitCmd.init(0, "exit", "Exit this shell")
-	this.addCommand("exit", exitCmd)
+	exitCmd.Init(0, "exit", "Exit this shell")
+	this.AddCommand("exit", exitCmd)
 }
 
-func (this *CommandParser) addCommand(name string, cmd *Command) {
+func (this *CommandParser) AddCommand(name string, cmd *Command) {
 	this.commands[name] = cmd
 }
 
-func (this *CommandParser) printHelp(err *error) {
+func (this *CommandParser) PrintHelp(err *error) {
 	if err != nil {
 		fmt.Printf("Error: %v\n", *err)
 	}
@@ -121,7 +121,7 @@ func (this *CommandParser) extractValidateCommand(tokens []string) (string, []st
 	return cmdName, tokens[1:], err
 }
 
-func (this *CommandParser) parseCommand(cmdStr string) (*ParsedCommand, error) {
+func (this *CommandParser) ParseCommand(cmdStr string) (*ParsedCommand, error) {
 	re := regexp.MustCompile(`\s+`)
 	cmdStr = re.ReplaceAllString(cmdStr, " ")
 	tokens := strings.Split(cmdStr, " ")
@@ -142,9 +142,9 @@ func (this *CommandParser) parseCommand(cmdStr string) (*ParsedCommand, error) {
 
 	if err == nil {
 		return &ParsedCommand{
-			commandName:    cmdName,
-			subCommandName: subCmdName,
-			args:           args,
+			CommandName:    cmdName,
+			SubCommandName: subCmdName,
+			Args:           args,
 		}, nil
 	} else {
 		return nil, err
